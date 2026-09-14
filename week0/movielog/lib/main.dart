@@ -48,6 +48,9 @@ class StartScreen extends StatelessWidget {
 
               const Text(
                 'FLUTTER 0주차',
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold),
               ),
 
@@ -64,9 +67,9 @@ class StartScreen extends StatelessWidget {
               const Text(
                 '영화의 순간을\n기록하세요',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
 
               const SizedBox(height: 12),
@@ -74,6 +77,8 @@ class StartScreen extends StatelessWidget {
               const Text(
                 '보고 싶은 영화부터 나만의 평점까지\n한곳에서 관리해요',
                 textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 11),
               ),
 
