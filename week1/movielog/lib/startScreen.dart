@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+import 'profileScreen.dart';
 
 void main() {
   final movies = <Movie>[
@@ -56,10 +59,11 @@ class StartScreen extends StatelessWidget {
 
               const SizedBox(height: 40),
 
-              const Icon(
-                Icons.movie_outlined,
-                size: 48,
-                color: Color(0xFF50378B),
+              SvgPicture.asset(
+                'assets/logos/movielog_logo.svg',
+                width: 72,
+                height: 72,
+                semanticsLabel: 'MovieLog 로고',
               ),
 
               const SizedBox(height: 40),
@@ -89,7 +93,12 @@ class StartScreen extends StatelessWidget {
                 height: 48,
                 child: ElevatedButton(
                   onPressed: () {
-                    debugPrint('시작하기 버튼을 눌렀습니다.');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProfileScreen(),
+                      ),
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF50378B),
