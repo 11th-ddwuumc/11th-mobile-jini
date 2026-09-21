@@ -14,15 +14,43 @@ class _SignupScreenState extends State<SignupScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  final _nicknameFocusNode = FocusNode();
+  final _emailFocusNode = FocusNode();
   final _passwordFocusNode = FocusNode();
 
   bool _isAgreed = false;
+
+  bool get _isFormValid {
+    final nickname = _nicknameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+    return nickname.length >= 2 &&
+        emailRegex.hasMatch(email) &&
+        password.length >= 8 &&
+        _isAgreed;
+  }
+
+  void _submit() {
+    final isValid = _formKey.currentState?.validate() ?? false;
+
+    if (!isValid || !_isAgreed) {
+      return;
+    }
+
+    // 회원가입 처리
+  }
 
   @override
   void dispose() {
     _nicknameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+
+    _nicknameFocusNode.dispose();
+    _emailFocusNode.dispose();
     _passwordFocusNode.dispose();
 
     super.dispose();
@@ -91,6 +119,11 @@ class _SignupScreenState extends State<SignupScreen> {
 
                 TextFormField(
                   controller: _nicknameController,
+                  focusNode: _nicknameFocusNode,
+                  textInputAction: TextInputAction.next,
+                  onFieldSubmitted: (_) {
+                    _emailFocusNode.requestFocus();
+                  },
                   decoration: InputDecoration(
                     hintText: '닉네임을 입력해주세요',
                     hintStyle: const TextStyle(
@@ -142,6 +175,11 @@ class _SignupScreenState extends State<SignupScreen> {
 
                 TextFormField(
                   controller: _emailController,
+                  focusNode: _emailFocusNode,
+                  textInputAction: TextInputAction.next,
+                  onFieldSubmitted: (_) {
+                    _passwordFocusNode.requestFocus();
+                  },
                   keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
                     hintText: '이메일을 입력해주세요',
@@ -197,6 +235,10 @@ class _SignupScreenState extends State<SignupScreen> {
                 TextFormField(
                   controller: _passwordController,
                   focusNode: _passwordFocusNode,
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) {
+                    FocusScope.of(context).unfocus();
+                  },
                   obscureText: true,
                   decoration: InputDecoration(
                     hintText: '비밀번호를 입력해주세요',
@@ -270,12 +312,14 @@ class _SignupScreenState extends State<SignupScreen> {
                   width: double.infinity,
                   height: 48,
                   child: ElevatedButton(
-                    onPressed: () {
-                      if (_formKey.currentState!.validate() && _isAgreed) {}
-                    },
+                    onPressed: _isFormValid ? _submit : null,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6750A4),
+                      backgroundColor: _isFormValid
+                          ? const Color(0xFF6750A4)
+                          : const Color(0xFFD9D5DE),
                       foregroundColor: Colors.white,
+                      disabledBackgroundColor: const Color(0xFFD9D5DE),
+                      disabledForegroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
