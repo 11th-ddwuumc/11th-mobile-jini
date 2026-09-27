@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../startScreen.dart';
@@ -6,6 +5,7 @@ import '../signupScreen.dart';
 import '../homeScreen.dart';
 import '../mainScreen.dart';
 import '../movieListScreen.dart';
+import '../movieDetailScreen.dart';
 import '../myPageScreen.dart';
 
 class AppRouter {
@@ -30,10 +30,24 @@ class AppRouter {
             path: '/home',
             builder: (context, state) => const HomeScreen(),
           ),
+
           GoRoute(
             path: '/movies',
             builder: (context, state) => const MovieListScreen(),
+            routes: [
+              GoRoute(
+                path: ':movieId',
+                builder: (context, state) {
+                  final movieId = int.tryParse(
+                    state.pathParameters['movieId'] ?? '',
+                  );
+
+                  return MovieDetailScreen(movieId: movieId);
+                },
+              ),
+            ],
           ),
+
           GoRoute(
             path: '/my',
             builder: (context, state) => const MyPageScreen(),
