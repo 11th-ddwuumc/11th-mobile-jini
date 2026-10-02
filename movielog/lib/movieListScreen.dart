@@ -6,6 +6,7 @@ import 'theme/app_colors.dart';
 import 'service/fakeMovieService.dart';
 import 'emptyMovieWidget.dart';
 import 'errorMovieWidget.dart';
+import 'preference/genrePreference.dart';
 
 class MovieListScreen extends StatefulWidget {
   const MovieListScreen({super.key});
@@ -18,11 +19,25 @@ class _MovieListScreenState extends State<MovieListScreen> {
   late Future<List<Movie>> _moviesFuture;
 
   final FakeMovieService movieService = FakeMovieService();
+  final GenrePreference genrePreference = GenrePreference();
 
   @override
   void initState() {
     super.initState();
     _moviesFuture = movieService.fetchMovies();
+    _loadSelectedGenre();
+  }
+
+  Future<void> _loadSelectedGenre() async {
+    final savedGenre = await genrePreference.loadGenre();
+
+    if (!mounted || savedGenre == null) {
+      return;
+    }
+
+    setState(() {
+      selectedGenre = savedGenre;
+    });
   }
 
   String selectedGenre = '전체';
@@ -134,10 +149,12 @@ class _MovieListScreenState extends State<MovieListScreen> {
           final isSelected = selectedGenre == genre;
 
           return GestureDetector(
-            onTap: () {
+            onTap: () async {
               setState(() {
                 selectedGenre = genre;
               });
+
+              await genrePreference.saveGenre(genre);
             },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
