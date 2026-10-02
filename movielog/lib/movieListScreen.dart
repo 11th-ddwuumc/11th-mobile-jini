@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import 'movie.dart';
+import 'model/movie.dart';
 import 'theme/app_colors.dart';
+import 'service/FakeMovieService.dart';
 
 class MovieListScreen extends StatefulWidget {
   const MovieListScreen({super.key});
@@ -12,6 +13,16 @@ class MovieListScreen extends StatefulWidget {
 }
 
 class _MovieListScreenState extends State<MovieListScreen> {
+  late Future<List<Movie>> _moviesFuture;
+
+  final FakeMovieService movieService = FakeMovieService();
+
+  @override
+  void initState() {
+    super.initState();
+    _moviesFuture = movieService.fetchMovies();
+  }
+
   String selectedGenre = '전체';
 
   final genres = const ['전체', '드라마', 'SF', '미스터리', '스릴러'];
@@ -57,19 +68,33 @@ class _MovieListScreenState extends State<MovieListScreen> {
           const SizedBox(height: 12),
 
           Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 24,
-                childAspectRatio: 0.50,
-              ),
-              itemCount: filtered.length,
-              itemBuilder: (context, index) {
-                final movie = filtered[index];
+            child: FutureBuilder<List<Movie>>(
+              future: _moviesFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-                return _buildMovieCard(movie);
+                final movies = snapshot.data ?? [];
+
+                return GridView.builder(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 24,
+                    childAspectRatio: 0.50,
+                  ),
+                  itemCount: movies.length,
+                  itemBuilder: (context, index) {
+                    final movie = movies[index];
+
+                    return _buildMovieCard(movie);
+                  },
+                );
               },
             ),
           ),

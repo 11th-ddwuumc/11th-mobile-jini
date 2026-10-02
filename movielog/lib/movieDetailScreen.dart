@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:go_router/go_router.dart';
 
-import 'movie.dart';
+import 'model/movie.dart';
 import 'theme/app_colors.dart';
 
 class MovieDetailScreen extends StatefulWidget {

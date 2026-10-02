@@ -2,7 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import 'movie.dart';
+import 'model/movie.dart';
 import 'theme/app_colors.dart';
 import 'theme/app_text_styles.dart';
 
