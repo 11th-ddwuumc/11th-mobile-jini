@@ -3,7 +3,9 @@ import 'package:go_router/go_router.dart';
 
 import 'model/movie.dart';
 import 'theme/app_colors.dart';
-import 'service/FakeMovieService.dart';
+import 'service/fakeMovieService.dart';
+import 'emptyMovieWidget.dart';
+import 'errorMovieWidget.dart';
 
 class MovieListScreen extends StatefulWidget {
   const MovieListScreen({super.key});
@@ -75,7 +77,21 @@ class _MovieListScreenState extends State<MovieListScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
 
+                if (snapshot.hasError) {
+                  return ErrorMovieWidget(
+                    onRetry: () {
+                      setState(() {
+                        _moviesFuture = movieService.fetchMovies();
+                      });
+                    },
+                  );
+                }
+
                 final movies = snapshot.data ?? [];
+
+                if (movies.isEmpty) {
+                  return const EmptyMovieWidget();
+                }
 
                 return GridView.builder(
                   padding: const EdgeInsets.symmetric(
