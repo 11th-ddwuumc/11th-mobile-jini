@@ -24,6 +24,7 @@ class _MovieListScreenState extends State<MovieListScreen> {
   @override
   void initState() {
     super.initState();
+    // TODO(5주차 유저별 평점 조회 API)
     _moviesFuture = movieService.fetchMovies();
     _loadSelectedGenre();
   }
@@ -44,18 +45,8 @@ class _MovieListScreenState extends State<MovieListScreen> {
 
   final genres = const ['전체', '드라마', 'SF', '미스터리', '스릴러'];
 
-  List<Movie> get filteredMovies {
-    if (selectedGenre == '전체') {
-      return movies;
-    }
-
-    return movies.where((movie) => movie.genre == selectedGenre).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
-    final filtered = filteredMovies;
-
     return Scaffold(
       backgroundColor: AppColors.warmWhite,
       appBar: AppBar(
@@ -102,9 +93,19 @@ class _MovieListScreenState extends State<MovieListScreen> {
                   );
                 }
 
-                final movies = snapshot.data ?? [];
+                final loadedMovies = snapshot.data ?? [];
 
-                if (movies.isEmpty) {
+                if (loadedMovies.isEmpty) {
+                  return const EmptyMovieWidget();
+                }
+
+                final filteredMovies = selectedGenre == '전체'
+                    ? loadedMovies
+                    : loadedMovies
+                          .where((movie) => movie.genre == selectedGenre)
+                          .toList();
+
+                if (filteredMovies.isEmpty) {
                   return const EmptyMovieWidget();
                 }
 
@@ -119,9 +120,9 @@ class _MovieListScreenState extends State<MovieListScreen> {
                     mainAxisSpacing: 24,
                     childAspectRatio: 0.50,
                   ),
-                  itemCount: movies.length,
+                  itemCount: filteredMovies.length,
                   itemBuilder: (context, index) {
-                    final movie = movies[index];
+                    final movie = filteredMovies[index];
 
                     return _buildMovieCard(movie);
                   },
