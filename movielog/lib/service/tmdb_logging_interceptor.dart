@@ -5,6 +5,8 @@ class TmdbLoggingInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     debugPrint('[TMDB] Request: ${options.method} ${options.path}');
+    debugPrint('[TMDB] Request: ${options.method} ${options.path}');
+    debugPrint('[TMDB] Query: ${options.queryParameters}');
 
     // 인증 헤더의 실제 값은 절대 로그에 출력하지 않는다.
     final safeHeaders = Map<String, dynamic>.from(options.headers);

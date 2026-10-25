@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
-import 'model/movie.dart';
-import 'theme/app_colors.dart';
-import 'service/fakeMovieService.dart';
 import 'emptyMovieWidget.dart';
 import 'errorMovieWidget.dart';
+import 'model/tmdb_movie_dto.dart';
+import 'provider/discover_provider.dart';
 import 'preference/genrePreference.dart';
+import 'theme/app_colors.dart';
 
 class MovieListScreen extends StatefulWidget {
   const MovieListScreen({super.key});
@@ -16,34 +17,60 @@ class MovieListScreen extends StatefulWidget {
 }
 
 class _MovieListScreenState extends State<MovieListScreen> {
-  late Future<List<Movie>> _moviesFuture;
-
-  final FakeMovieService movieService = FakeMovieService();
   final GenrePreference genrePreference = GenrePreference();
+
+  String selectedGenre = '전체';
 
   @override
   void initState() {
     super.initState();
-    // TODO(5주차 유저별 평점 조회 API)
-    _moviesFuture = movieService.fetchMovies();
-    _loadSelectedGenre();
-  }
 
-  Future<void> _loadSelectedGenre() async {
-    final savedGenre = await genrePreference.loadGenre();
-
-    if (!mounted || savedGenre == null) {
-      return;
-    }
-
-    setState(() {
-      selectedGenre = savedGenre;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initialize();
     });
   }
 
-  String selectedGenre = '전체';
+  Future<void> _initialize() async {
+    final provider = context.read<DiscoverProvider>();
+    final savedGenre = await genrePreference.loadGenre();
 
-  final genres = const ['전체', '드라마', 'SF', '미스터리', '스릴러'];
+    if (!mounted) return;
+
+    await provider.loadInitial();
+
+    if (!mounted || provider.hasError) return;
+
+    if (savedGenre != null &&
+        savedGenre != '전체' &&
+        provider.genres.any((genre) => genre.name == savedGenre)) {
+      final genre = provider.genres.firstWhere(
+        (genre) => genre.name == savedGenre,
+      );
+
+      setState(() {
+        selectedGenre = genre.name;
+      });
+
+      await provider.selectGenre(genre.id);
+    } else if (savedGenre != null && savedGenre != '전체') {
+      await genrePreference.saveGenre('전체');
+    }
+  }
+
+  Future<void> _selectGenre(
+    DiscoverProvider provider,
+    String genreName,
+    int? genreId,
+  ) async {
+    if (provider.isLoading) return;
+
+    setState(() {
+      selectedGenre = genreName;
+    });
+
+    await genrePreference.saveGenre(genreName);
+    await provider.selectGenre(genreId);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,118 +95,108 @@ class _MovieListScreenState extends State<MovieListScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 20),
-          _buildGenreButtons(),
-          const SizedBox(height: 12),
+      body: Consumer<DiscoverProvider>(
+        builder: (context, provider, child) {
+          final genres = provider.genres;
 
-          Expanded(
-            child: FutureBuilder<List<Movie>>(
-              future: _moviesFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 20),
 
-                if (snapshot.hasError) {
-                  return ErrorMovieWidget(
-                    onRetry: () {
-                      setState(() {
-                        _moviesFuture = movieService.fetchMovies();
-                      });
-                    },
-                  );
-                }
-
-                final loadedMovies = snapshot.data ?? [];
-
-                if (loadedMovies.isEmpty) {
-                  return const EmptyMovieWidget();
-                }
-
-                final filteredMovies = selectedGenre == '전체'
-                    ? loadedMovies
-                    : loadedMovies
-                          .where((movie) => movie.genre == selectedGenre)
-                          .toList();
-
-                if (filteredMovies.isEmpty) {
-                  return const EmptyMovieWidget();
-                }
-
-                return GridView.builder(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 8,
-                  ),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 24,
-                    childAspectRatio: 0.50,
-                  ),
-                  itemCount: filteredMovies.length,
+              SizedBox(
+                height: 36,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  itemCount: genres.length + 1,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(width: 8),
                   itemBuilder: (context, index) {
-                    final movie = filteredMovies[index];
+                    final isAll = index == 0;
+                    final genreName = isAll ? '전체' : genres[index - 1].name;
+                    final genreId = isAll ? null : genres[index - 1].id;
+                    final isSelected = selectedGenre == genreName;
 
-                    return _buildMovieCard(movie);
+                    return GestureDetector(
+                      onTap: provider.isLoading
+                          ? null
+                          : () => _selectGenre(provider, genreName, genreId),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.violet
+                              : const Color(0xFFE6E0E9),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          genreName,
+                          style: TextStyle(
+                            fontSize: 12,
+                            height: 3,
+                            fontWeight: FontWeight.w600,
+                            color: isSelected ? Colors.white : AppColors.black,
+                          ),
+                        ),
+                      ),
+                    );
                   },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGenreButtons() {
-    return SizedBox(
-      height: 36,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: genres.length,
-        separatorBuilder: (context, index) {
-          return const SizedBox(width: 8);
-        },
-        itemBuilder: (context, index) {
-          final genre = genres[index];
-          final isSelected = selectedGenre == genre;
-
-          return GestureDetector(
-            onTap: () async {
-              setState(() {
-                selectedGenre = genre;
-              });
-
-              await genrePreference.saveGenre(genre);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-              decoration: BoxDecoration(
-                color: isSelected ? AppColors.violet : const Color(0xFFE6E0E9),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                genre,
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 3,
-                  fontWeight: FontWeight.w600,
-                  color: isSelected ? Colors.white : AppColors.black,
                 ),
               ),
-            ),
+
+              const SizedBox(height: 12),
+
+              Expanded(child: _buildMovieContent(provider)),
+            ],
           );
         },
       ),
     );
   }
 
-  Widget _buildMovieCard(Movie movie) {
+  Widget _buildMovieContent(DiscoverProvider provider) {
+    if (provider.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (provider.hasError) {
+      return ErrorMovieWidget(
+        onRetry: () {
+          provider.retry();
+        },
+      );
+    }
+
+    if (provider.movies.isEmpty) {
+      return const EmptyMovieWidget();
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 24,
+        childAspectRatio: 0.50,
+      ),
+      itemCount: provider.movies.length,
+      itemBuilder: (context, index) {
+        return _buildMovieCard(provider.movies[index]);
+      },
+    );
+  }
+
+  Widget _buildMovieCard(TmdbMovieDto movie) {
+    final posterPath = movie.posterPath;
+    final releaseDate = movie.releaseDate ?? '';
+    final year = releaseDate.length >= 4
+        ? releaseDate.substring(0, 4)
+        : '개봉일 미정';
+
     return GestureDetector(
       onTap: () {
         context.push('/movies/${movie.id}');
@@ -192,11 +209,18 @@ class _MovieListScreenState extends State<MovieListScreen> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.asset(
-                    movie.posterAsset,
+                  child: SizedBox(
                     width: double.infinity,
                     height: double.infinity,
-                    fit: BoxFit.cover,
+                    child: posterPath == null || posterPath.isEmpty
+                        ? _buildPosterPlaceholder()
+                        : Image.network(
+                            'https://image.tmdb.org/t/p/w500$posterPath',
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return _buildPosterPlaceholder();
+                            },
+                          ),
                   ),
                 ),
 
@@ -213,7 +237,7 @@ class _MovieListScreenState extends State<MovieListScreen> {
                       borderRadius: BorderRadius.circular(7),
                     ),
                     child: Text(
-                      '★ ${movie.rating}',
+                      '★ ${movie.voteAverage.toStringAsFixed(1)}',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -242,11 +266,19 @@ class _MovieListScreenState extends State<MovieListScreen> {
           const SizedBox(height: 3),
 
           Text(
-            '${movie.year} · ${movie.genre}',
+            year,
             style: const TextStyle(fontSize: 14, color: AppColors.gray),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPosterPlaceholder() {
+    return Container(
+      color: const Color(0xFFE6E0E9),
+      alignment: Alignment.center,
+      child: const Icon(Icons.movie_outlined, size: 48, color: AppColors.gray),
     );
   }
 }

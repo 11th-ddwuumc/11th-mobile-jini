@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../model/tmdb_genre_dto.dart';
 import '../model/tmdb_movie_dto.dart';
 import 'tmdb_logging_interceptor.dart';
+import '../model/tmdb_movie_detail_dto.dart';
 
 class TmdbMovieService {
   TmdbMovieService({Dio? dio}) : _dio = dio ?? _createDio();
@@ -79,5 +80,14 @@ class TmdbMovieService {
     );
 
     return TmdbMoviePageDto.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<TmdbMovieDetailDto> fetchMovieDetails(int movieId) async {
+    final response = await _dio.get(
+      '/movie/$movieId',
+      queryParameters: {'language': 'ko-KR'},
+    );
+
+    return TmdbMovieDetailDto.fromJson(response.data as Map<String, dynamic>);
   }
 }

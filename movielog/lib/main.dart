@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import 'provider/discover_provider.dart';
+
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'router/app_router.dart';
@@ -14,8 +17,11 @@ Future<void> main() async {
     throw StateError('TMDB_ACCESS_TOKEN이 .env에 설정되지 않았습니다.');
   }
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => PopularMovieProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => PopularMovieProvider()),
+        ChangeNotifierProvider(create: (_) => DiscoverProvider()),
+      ],
       child: const MovieLogApp(),
     ),
   );
