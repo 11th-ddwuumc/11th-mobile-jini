@@ -63,34 +63,73 @@ class SignUpViewModel extends ChangeNotifier {
 
   Future<void> checkNickname(String value) async {
     final requested = value.trim();
-    if (requested.isEmpty || requested != _currentNickname || !canCheckNickname)
+
+    debugPrint('[중복 확인] 요청 시작: $requested');
+    debugPrint('[중복 확인] 현재 입력값: $_currentNickname');
+
+    if (requested.isEmpty ||
+        requested != _currentNickname ||
+        !canCheckNickname) {
+      debugPrint('[중복 확인] 요청 조건 불충족');
       return;
+    }
 
     final version = ++_requestVersion;
     nicknameCheckStatus = CheckStatus.checking;
     nicknameErrorText = null;
     notifyListeners();
 
+    debugPrint('[중복 확인] API 호출 직전');
+
     try {
       final available = await _service.checkNickname(requested);
+
+      debugPrint('[중복 확인] API 응답: $available');
+
       if (_disposed ||
           version != _requestVersion ||
-          _currentNickname != requested)
+          _currentNickname != requested) {
         return;
+      }
+
       nicknameCheckStatus = available
           ? CheckStatus.available
           : CheckStatus.duplicated;
+
       nicknameErrorText = available ? null : '이미 사용 중인 닉네임입니다.';
-      if (!available) _duplicatedNickname = requested;
-    } on DioException {
+
+      if (!available) {
+        _duplicatedNickname = requested;
+      }
+    } on DioException catch (e) {
+      debugPrint('[중복 확인] Dio 오류: ${e.message}');
+      debugPrint('[중복 확인] 응답 데이터: ${e.response?.data}');
+
       if (_disposed ||
           version != _requestVersion ||
-          _currentNickname != requested)
+          _currentNickname != requested) {
         return;
+      }
+
+      nicknameCheckStatus = CheckStatus.error;
+      nicknameErrorText = '중복 확인에 실패했습니다. 다시 시도해 주세요.';
+    } catch (e, stackTrace) {
+      debugPrint('[중복 확인] 기타 오류: $e');
+      debugPrint('$stackTrace');
+
+      if (_disposed ||
+          version != _requestVersion ||
+          _currentNickname != requested) {
+        return;
+      }
+
       nicknameCheckStatus = CheckStatus.error;
       nicknameErrorText = '중복 확인에 실패했습니다. 다시 시도해 주세요.';
     }
-    if (!_disposed && version == _requestVersion) notifyListeners();
+
+    if (!_disposed && version == _requestVersion) {
+      notifyListeners();
+    }
   }
 
   Future<void> checkEmail(String value) async {
@@ -143,6 +182,7 @@ class SignUpViewModel extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _requestVersion++;
+    _emailRequestVersion++;
     super.dispose();
   }
 }

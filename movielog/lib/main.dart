@@ -10,6 +10,7 @@ import 'core/network/movie_log_client.dart';
 import 'data/services/member_check_service.dart';
 import 'data/services/rating_api_service.dart';
 import '../service/tmdb_movie_service.dart';
+import 'view_models/sign_up_view_model.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,6 +32,10 @@ Future<void> main() async {
         Provider<TmdbMovieService>(create: (_) => TmdbMovieService()),
         Provider<MemberCheckService>(
           create: (_) => MemberCheckService(movieLogClient),
+        ),
+        ChangeNotifierProvider(
+          create: (context) =>
+              SignUpViewModel(context.read<MemberCheckService>()),
         ),
         Provider<RatingApiService>(
           create: (_) => RatingApiService(movieLogClient),

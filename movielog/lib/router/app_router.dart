@@ -26,7 +26,7 @@ class AppRouter {
   // ② GoRouter에 root Navigator 등록
   static final router = GoRouter(
     navigatorKey: rootNavigatorKey,
-    initialLocation: '/start',
+    initialLocation: '/home',
     routes: [
       GoRoute(path: '/start', builder: (context, state) => const StartScreen()),
 
