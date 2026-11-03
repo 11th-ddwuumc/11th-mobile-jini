@@ -4,6 +4,8 @@ import 'CommonAppBar.dart';
 import 'theme/app_colors.dart';
 import 'theme/app_text_styles.dart';
 
+import 'package:go_router/go_router.dart';
+
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
@@ -37,6 +39,30 @@ class ProfileBody extends StatelessWidget {
           const SizedBox(height: 24),
 
           const ProfileStats(),
+
+          const SizedBox(height: 24),
+
+          InkWell(
+            onTap: () {
+              context.push('/my/ratings');
+            },
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.lightViolet),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('내가 등록한 평점', style: AppTextStyles.bodyMedium),
+                  const Icon(Icons.chevron_right, color: AppColors.violet),
+                ],
+              ),
+            ),
+          ),
 
           const SizedBox(height: 24),
 
