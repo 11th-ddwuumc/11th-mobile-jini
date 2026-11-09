@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../view_models/sign_up_view_model.dart';
 import '../../widgets/movielog_button.dart';
+import '../data/models/create_member_request.dart';
+
+import 'package:go_router/go_router.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -37,12 +40,42 @@ class _SignupScreenState extends State<SignupScreen> {
         _isAgreed;
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final isValid = _formKey.currentState?.validate() ?? false;
 
     if (!isValid || !_isAgreed) return;
 
-    debugPrint('회원가입 완료');
+    final viewModel = context.read<SignUpViewModel>();
+
+    // 닉네임과 이메일 중복 확인이 완료되어야 가입 가능
+    if (viewModel.nicknameCheckStatus != CheckStatus.available ||
+        viewModel.emailCheckStatus != CheckStatus.available) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('닉네임과 이메일 중복 확인을 완료해 주세요.')));
+      return;
+    }
+
+    await viewModel.submit(
+      CreateMemberRequest(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        nickname: _nicknameController.text.trim(),
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (viewModel.submitStatus == SubmitStatus.success &&
+        viewModel.createdMemberId != null) {
+      context.go('/movies');
+      return;
+    }
+
+    if (viewModel.snackbarMessage != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(viewModel.snackbarMessage!)));
+    }
   }
 
   @override
@@ -60,86 +93,95 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back),
-        ),
-        title: const Text(
-          '회원가입',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF6750A4),
-            fontFamily: 'Manrope',
-          ),
-        ),
-        centerTitle: true,
-      ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 700;
-            final formWidth = isWide ? 560.0 : constraints.maxWidth - 48;
-
-            return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-              child: Align(
-                alignment: isWide ? Alignment.topCenter : Alignment.topLeft,
-                child: SizedBox(
-                  width: formWidth,
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SignupIntro(),
-                        const SizedBox(height: 32),
-
-                        Consumer<SignUpViewModel>(
-                          builder: (context, viewModel, child) {
-                            return SignupFormFields(
-                              nicknameController: _nicknameController,
-                              emailController: _emailController,
-                              passwordController: _passwordController,
-                              nicknameFocusNode: _nicknameFocusNode,
-                              emailFocusNode: _emailFocusNode,
-                              passwordFocusNode: _passwordFocusNode,
-                              viewModel: viewModel,
-                              onChanged: () {
-                                setState(() {});
-                              },
-                            );
-                          },
-                        ),
-
-                        const SizedBox(height: 120),
-
-                        TermsAgreement(
-                          isAgreed: _isAgreed,
-                          onChanged: (value) {
-                            setState(() {
-                              _isAgreed = value;
-                            });
-                          },
-                        ),
-
-                        const SizedBox(height: 12),
-
-                        SignupActions(
-                          isFormValid: _isFormValid,
-                          onSubmit: _submit,
-                        ),
-                      ],
-                    ),
-                  ),
+    return Consumer<SignUpViewModel>(
+      builder: (context, viewModel, child) {
+        return PopScope(
+          canPop: viewModel.submitStatus != SubmitStatus.submitting,
+          child: Scaffold(
+            appBar: AppBar(
+              leading: IconButton(
+                onPressed: viewModel.submitStatus == SubmitStatus.submitting
+                    ? null
+                    : () => Navigator.pop(context),
+                icon: const Icon(Icons.arrow_back),
+              ),
+              title: const Text(
+                '회원가입',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF6750A4),
+                  fontFamily: 'Manrope',
                 ),
               ),
-            );
-          },
-        ),
-      ),
+              centerTitle: true,
+            ),
+            body: SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth >= 700;
+                  final formWidth = isWide ? 560.0 : constraints.maxWidth - 48;
+
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 24,
+                    ),
+                    child: Align(
+                      alignment: isWide
+                          ? Alignment.topCenter
+                          : Alignment.topLeft,
+                      child: SizedBox(
+                        width: formWidth,
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SignupIntro(),
+                              const SizedBox(height: 32),
+                              SignupFormFields(
+                                nicknameController: _nicknameController,
+                                emailController: _emailController,
+                                passwordController: _passwordController,
+                                nicknameFocusNode: _nicknameFocusNode,
+                                emailFocusNode: _emailFocusNode,
+                                passwordFocusNode: _passwordFocusNode,
+                                viewModel: viewModel,
+                                onChanged: () {
+                                  setState(() {});
+                                },
+                              ),
+                              const SizedBox(height: 120),
+                              TermsAgreement(
+                                isAgreed: _isAgreed,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _isAgreed = value;
+                                  });
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                              SignupActions(
+                                isFormValid:
+                                    _isFormValid && viewModel.canSubmit,
+                                isLoading:
+                                    viewModel.submitStatus ==
+                                    SubmitStatus.submitting,
+                                onSubmit: _submit,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -395,9 +437,11 @@ class _SignupFormFieldsState extends State<SignupFormFields> {
     final emailValid =
         widget.viewModel.emailCheckStatus == CheckStatus.available;
 
-    final passwordError = _passwordTouched
-        ? _validatePassword(widget.passwordController.text)
-        : null;
+    final passwordError =
+        widget.viewModel.passwordErrorText ??
+        (_passwordTouched
+            ? _validatePassword(widget.passwordController.text)
+            : null);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -515,6 +559,7 @@ class _SignupFormFieldsState extends State<SignupFormFields> {
               _passwordTouched = true;
             });
 
+            widget.viewModel.onPasswordChanged();
             widget.onChanged();
           },
           onSubmitted: () {
@@ -562,10 +607,12 @@ class SignupActions extends StatelessWidget {
   const SignupActions({
     super.key,
     required this.isFormValid,
+    required this.isLoading,
     required this.onSubmit,
   });
 
   final bool isFormValid;
+  final bool isLoading;
   final VoidCallback onSubmit;
 
   @override
@@ -576,7 +623,7 @@ class SignupActions extends StatelessWidget {
           width: double.infinity,
           height: 48,
           child: ElevatedButton(
-            onPressed: isFormValid ? onSubmit : null,
+            onPressed: isFormValid && !isLoading ? onSubmit : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: isFormValid
                   ? const Color(0xFF6750A4)
@@ -588,10 +635,19 @@ class SignupActions extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: const Text(
-              '가입하기',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
+            child: isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text(
+                    '가입하기',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
           ),
         ),
 

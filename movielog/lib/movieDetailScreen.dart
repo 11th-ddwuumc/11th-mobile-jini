@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import 'model/tmdb_movie_detail_dto.dart';
 import 'service/tmdb_movie_service.dart';
 import 'theme/app_colors.dart';
+import 'widgets/movie_rating_input.dart';
+
+import 'view_models/movie_detail_view_model.dart';
+import 'view_models/sign_up_view_model.dart';
+import 'data/models/rating_request.dart';
 
 class MovieDetailScreen extends StatefulWidget {
   const MovieDetailScreen({super.key, required this.movieId});
@@ -293,91 +298,250 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     );
   }
 
+  // 평점 등록 Dialog
+  // 평점 등록 Dialog
   Future<void> _showRatingDialog() async {
-    final movieId = widget.movieId;
+    int? savedScore;
 
-    if (movieId == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('영화 정보를 확인할 수 없습니다.')));
-      return;
-    }
-
-    final rating = await showDialog<double>(
+    final saved = await showDialog<bool>(
       context: context,
-      builder: (context) => RatingDialog(movieId: movieId),
+      barrierDismissible: false,
+      builder: (_) => RatingDialog(
+        onSubmit: (score, comment) async {
+          final viewModel = context.read<MovieDetailViewModel>();
+
+          await viewModel.createRating(score: score, comment: comment);
+
+          if (viewModel.submitStatus != SubmitStatus.success) {
+            throw StateError(viewModel.submitMessage ?? '저장에 실패했습니다.');
+          }
+
+          savedScore = score;
+        },
+      ),
     );
 
-    if (rating != null && mounted) {
-      setState(() {
-        myRating = rating;
-      });
+    if (!mounted || saved != true) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${rating.toStringAsFixed(1)}점으로 평가했습니다.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
+    setState(() {
+      myRating = (savedScore ?? 0).toDouble();
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('평점을 등록했습니다. 마이페이지의 "내가 등록한 평점"에서 확인할 수 있습니다.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 }
 
+// 평점 등록 Dialog
 class RatingDialog extends StatefulWidget {
-  const RatingDialog({super.key, required this.movieId});
+  const RatingDialog({
+    super.key,
+    this.initialScore = 0,
+    this.initialComment,
+    required this.onSubmit,
+  });
 
-  final int movieId;
+  final int initialScore;
+  final String? initialComment;
+  final Future<void> Function(int score, String? comment) onSubmit;
 
   @override
   State<RatingDialog> createState() => _RatingDialogState();
 }
 
 class _RatingDialogState extends State<RatingDialog> {
-  double rating = 0;
+  late int _score = widget.initialScore;
+
+  late final _commentController = TextEditingController(
+    text: widget.initialComment ?? '',
+  );
+
+  bool _isSubmitting = false;
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: AppColors.warmWhite,
-      title: const Center(
-        child: Text(
-          '영화는 어땠나요?',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: AppColors.black,
-          ),
+    return PopScope(
+      canPop: !_isSubmitting,
+      child: AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          '평점을 남겨주세요',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
         ),
-      ),
-      content: RatingBar.builder(
-        initialRating: rating,
-        minRating: 0.5,
-        allowHalfRating: true,
-        itemCount: 5,
-        itemSize: 32,
-        itemBuilder: (context, index) {
-          return const Icon(Icons.star, color: AppColors.violet);
-        },
-        onRatingUpdate: (value) {
-          setState(() {
-            rating = value;
-          });
-        },
-      ),
-      actions: [
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: rating == 0
-                ? null
-                : () => Navigator.pop(context, rating),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.violet,
-              foregroundColor: Colors.white,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            MovieRatingInput(
+              rating: _score.toDouble(),
+              enabled: !_isSubmitting,
+              onChanged: (value) {
+                setState(() {
+                  _score = validateServerScore(value);
+                });
+              },
             ),
-            child: const Text('확인'),
-          ),
+            const SizedBox(height: 12),
+
+            // 코멘트 입력
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '코멘트 (선택, 최대 500자)',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF7654B5),
+                  ),
+                ),
+                const SizedBox(height: 7),
+                TextField(
+                  controller: _commentController,
+                  maxLines: 3,
+                  maxLength: 500,
+                  enabled: !_isSubmitting,
+                  decoration: InputDecoration(
+                    hintText: '이 영화의 인상적인 장면은...',
+                    hintStyle: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey,
+                    ),
+                    counterText: '',
+                    filled: true,
+                    fillColor: const Color(0xFFFAF8FC),
+                    contentPadding: const EdgeInsets.all(12),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFFDED5EA)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFF7654B5)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            if (_errorText != null) ...[
+              const SizedBox(height: 8),
+              Text(_errorText!, style: const TextStyle(color: Colors.red)),
+            ],
+
+            const SizedBox(height: 12),
+
+            // 취소 / 확인 버튼
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 42,
+                    child: ElevatedButton(
+                      onPressed: _isSubmitting
+                          ? null
+                          : () => Navigator.pop(context, false),
+                      style: ElevatedButton.styleFrom(
+                        elevation: 0,
+                        backgroundColor: const Color(0xFFF0EAF8),
+                        foregroundColor: const Color(0xFF7654B5),
+                        shape: const StadiumBorder(),
+                      ),
+                      child: const Text(
+                        '취소',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SizedBox(
+                    height: 42,
+                    child: ElevatedButton(
+                      onPressed: _score > 0 && !_isSubmitting
+                          ? _onConfirm
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        elevation: 0,
+                        backgroundColor: const Color(0xFF7654B5),
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: const Color(0xFF7654B5)
+                            .withValues(alpha: 0.4),
+                        shape: const StadiumBorder(),
+                      ),
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              width: 17,
+                              height: 17,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              '확인',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
-      ],
+      ),
     );
+  }
+
+  Future<void> _onConfirm() async {
+    setState(() {
+      _isSubmitting = true;
+      _errorText = null;
+    });
+
+    final trimmed = _commentController.text.trim();
+
+    if (trimmed.length > 500) {
+      setState(() {
+        _isSubmitting = false;
+        _errorText = '코멘트는 500자 이하로 입력해 주세요.';
+      });
+      return;
+    }
+
+    try {
+      await widget.onSubmit(_score, trimmed.isEmpty ? null : trimmed);
+
+      if (!mounted) return;
+
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _isSubmitting = false;
+        _errorText = error.toString().replaceFirst('Bad state: ', '');
+      });
+    }
   }
 }
