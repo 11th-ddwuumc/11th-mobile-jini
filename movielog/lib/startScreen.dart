@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+import 'profileScreen.dart';
 
 void main() {
   final movies = <Movie>[
@@ -48,15 +51,19 @@ class StartScreen extends StatelessWidget {
 
               const Text(
                 'FLUTTER 0주차',
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold),
               ),
 
               const SizedBox(height: 40),
 
-              const Icon(
-                Icons.movie_outlined,
-                size: 48,
-                color: Color(0xFF50378B),
+              SvgPicture.asset(
+                'assets/logos/movielog_logo.svg',
+                width: 72,
+                height: 72,
+                semanticsLabel: 'MovieLog 로고',
               ),
 
               const SizedBox(height: 40),
@@ -64,9 +71,9 @@ class StartScreen extends StatelessWidget {
               const Text(
                 '영화의 순간을\n기록하세요',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
 
               const SizedBox(height: 12),
@@ -74,6 +81,8 @@ class StartScreen extends StatelessWidget {
               const Text(
                 '보고 싶은 영화부터 나만의 평점까지\n한곳에서 관리해요',
                 textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 11),
               ),
 
@@ -84,7 +93,12 @@ class StartScreen extends StatelessWidget {
                 height: 48,
                 child: ElevatedButton(
                   onPressed: () {
-                    debugPrint('시작하기 버튼을 눌렀습니다.');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProfileScreen(),
+                      ),
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF50378B),
