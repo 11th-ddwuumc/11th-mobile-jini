@@ -5,16 +5,25 @@ import '../data/services/rating_api_service.dart';
 import '../data/models/rating_request.dart';
 import '../model/tmdb_movie_dto.dart';
 import 'sign_up_view_model.dart';
+import 'auth_view_model.dart';
+import '../data/models/rating_dto.dart';
 
 class MovieDetailViewModel extends ChangeNotifier {
-  MovieDetailViewModel(this._ratingService, this.memberId, this.movie);
+  MovieDetailViewModel(
+    this._ratingService,
+    this._authViewModel,
+    this.memberId,
+    this.movie,
+  );
 
   final RatingApiService _ratingService;
+  final AuthViewModel _authViewModel;
   final int? memberId;
   final TmdbMovieDto movie;
 
   SubmitStatus submitStatus = SubmitStatus.idle;
   String? submitMessage;
+  RatingDto? createdRating;
 
   bool _disposed = false;
 
@@ -25,9 +34,9 @@ class MovieDetailViewModel extends ChangeNotifier {
 
     final id = memberId;
 
-    if (id == null) {
+    if (_authViewModel.status != AuthStatus.signedIn) {
       submitStatus = SubmitStatus.error;
-      submitMessage = '먼저 회원가입을 완료해 주세요.';
+      submitMessage = '로그인이 필요합니다.';
       _notify();
       return;
     }
@@ -39,13 +48,15 @@ class MovieDetailViewModel extends ChangeNotifier {
       return;
     }
 
+    final sessionVersion = _authViewModel.sessionVersion;
+
     submitStatus = SubmitStatus.submitting;
     submitMessage = null;
+    createdRating = null;
     _notify();
 
     try {
-      await _ratingService.createRating(
-        memberId: id,
+      final result = await _ratingService.createRating(
         request: CreateRatingRequest(
           movieId: movie.id,
           score: score,
@@ -53,11 +64,25 @@ class MovieDetailViewModel extends ChangeNotifier {
         ),
       );
 
-      if (_disposed) return;
+      if (_disposed || sessionVersion != _authViewModel.sessionVersion) {
+        return;
+      }
 
+      createdRating = result;
       submitStatus = SubmitStatus.success;
     } on DioException catch (error) {
-      if (_disposed) return;
+      if (_disposed || sessionVersion != _authViewModel.sessionVersion) {
+        return;
+      }
+
+      final data = error.response?.data;
+      final code = data is Map ? data['code']?.toString() : null;
+
+      if (code == 'AUTH401_2' || code == 'AUTH401_3' || code == 'AUTH401_4') {
+        await _authViewModel.expireSession();
+
+        if (_disposed) return;
+      }
 
       submitStatus = SubmitStatus.error;
       submitMessage = writeErrorMessage(error);

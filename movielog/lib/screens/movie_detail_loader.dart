@@ -9,6 +9,7 @@ import '../view_models/movie_detail_view_model.dart';
 import '../view_models/learning_member_session.dart';
 
 import '../movieDetailScreen.dart';
+import '../view_models/auth_view_model.dart';
 
 class MovieDetailLoader extends StatefulWidget {
   const MovieDetailLoader({
@@ -48,6 +49,7 @@ class _MovieDetailLoaderState extends State<MovieDetailLoader> {
         return ChangeNotifierProvider<MovieDetailViewModel>(
           create: (context) => MovieDetailViewModel(
             context.read<RatingApiService>(),
+            context.read<AuthViewModel>(),
             context.read<LearningMemberSession>().memberId,
             snapshot.data!,
           ),

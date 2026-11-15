@@ -5,11 +5,19 @@ import '../data/services/rating_api_service.dart';
 import '../../service/tmdb_movie_service.dart';
 import '../../model/tmdb_movie_dto.dart';
 import '../data/models/rating_with_movie.dart';
+import 'auth_view_model.dart';
 
 enum MyRatingsLoadStatus { idle, loading, success, empty, error }
 
 class MyRatingsViewModel extends ChangeNotifier {
-  MyRatingsViewModel(this._service, this._movieService, this.memberId);
+  MyRatingsViewModel(
+    this._service,
+    this._movieService,
+    this._authViewModel,
+    this.memberId,
+  );
+
+  final AuthViewModel _authViewModel;
 
   final RatingApiService _service;
   final TmdbMovieService _movieService;
@@ -37,6 +45,19 @@ class MyRatingsViewModel extends ChangeNotifier {
 
   void _notify() {
     if (!_disposed) notifyListeners();
+  }
+
+  bool _isAuthExpired(DioException error) {
+    final data = error.response?.data;
+    final code = data is Map ? data['code']?.toString() : null;
+
+    return code == 'AUTH401_2' || code == 'AUTH401_3' || code == 'AUTH401_4';
+  }
+
+  Future<void> _handleAuthExpired(DioException error) async {
+    if (_isAuthExpired(error)) {
+      await _authViewModel.expireSession();
+    }
   }
 
   Future<void> load() async {
@@ -149,31 +170,58 @@ class MyRatingsViewModel extends ChangeNotifier {
       return;
     }
 
+    if (_authViewModel.status != AuthStatus.signedIn) {
+      message = '로그인이 필요합니다.';
+      _notify();
+      return;
+    }
+
+    final sessionVersion = _authViewModel.sessionVersion;
+
     isUpdating = true;
     refreshWarning = null;
     message = null;
     _notify();
 
     try {
-      await _service.updateRating(
-        memberId: memberId,
+      final updated = await _service.updateRating(
         ratingId: ratingId,
         score: score,
         comment: comment,
       );
 
-      if (_disposed) return;
+      if (_disposed || sessionVersion != _authViewModel.sessionVersion) {
+        return;
+      }
+
+      // 서버에서 받은 수정 결과를 현재 목록에 먼저 반영
+      ratings = ratings.map((entry) {
+        if (entry.rating.ratingId == ratingId) {
+          return RatingWithMovie(rating: updated, movie: entry.movie);
+        }
+        return entry;
+      }).toList();
+
+      _notify();
 
       await _refreshAfterWrite();
     } on DioException catch (error) {
-      if (!_disposed) {
-        message = writeErrorMessage(error);
-        _notify();
-
-        if (shouldRefreshAfterRatingError(error)) {
-          await load();
-        }
+      if (_disposed || sessionVersion != _authViewModel.sessionVersion) {
+        return;
       }
+
+      if (_isAuthExpired(error)) {
+        await _handleAuthExpired(error);
+        return;
+      }
+
+      message = writeErrorMessage(error);
+      _notify();
+
+      if (shouldRefreshAfterRatingError(error)) {
+        await load();
+      }
+
       rethrow;
     } finally {
       if (!_disposed) {
@@ -191,28 +239,46 @@ class MyRatingsViewModel extends ChangeNotifier {
       return;
     }
 
+    if (_authViewModel.status != AuthStatus.signedIn) {
+      message = '로그인이 필요합니다.';
+      _notify();
+      return;
+    }
+
+    final sessionVersion = _authViewModel.sessionVersion;
+
     deletingRatingIds.add(ratingId);
     refreshWarning = null;
     message = null;
     _notify();
 
     try {
-      await _service.deleteRating(memberId: memberId, ratingId: ratingId);
+      await _service.deleteRating(ratingId);
+
+      if (_disposed || sessionVersion != _authViewModel.sessionVersion) {
+        return;
+      }
 
       selectedRatingIds.remove(ratingId);
 
-      if (_disposed) return;
-
       await _refreshAfterWrite();
     } on DioException catch (error) {
-      if (!_disposed) {
-        message = writeErrorMessage(error);
-        _notify();
-
-        if (shouldRefreshAfterRatingError(error)) {
-          await load();
-        }
+      if (_disposed || sessionVersion != _authViewModel.sessionVersion) {
+        return;
       }
+
+      if (_isAuthExpired(error)) {
+        await _handleAuthExpired(error);
+        return;
+      }
+
+      message = writeErrorMessage(error);
+      _notify();
+
+      if (shouldRefreshAfterRatingError(error)) {
+        await load();
+      }
+
       rethrow;
     } finally {
       if (!_disposed) {
@@ -230,37 +296,66 @@ class MyRatingsViewModel extends ChangeNotifier {
       return;
     }
 
+    if (_authViewModel.status != AuthStatus.signedIn) {
+      message = '로그인이 필요합니다.';
+      _notify();
+      return;
+    }
+
+    final sessionVersion = _authViewModel.sessionVersion;
+
     isDeletingSelected = true;
     refreshWarning = null;
     message = null;
     _notify();
 
     var failed = 0;
+    var authExpired = false;
+
     final idsToDelete = selectedRatingIds.toList();
 
     try {
       for (final ratingId in idsToDelete) {
-        if (_disposed) return;
+        if (_disposed || sessionVersion != _authViewModel.sessionVersion) {
+          return;
+        }
 
         try {
-          await _service.deleteRating(memberId: memberId, ratingId: ratingId);
+          await _service.deleteRating(ratingId);
+
+          if (_disposed || sessionVersion != _authViewModel.sessionVersion) {
+            return;
+          }
 
           selectedRatingIds.remove(ratingId);
+        } on DioException catch (error) {
+          if (_isAuthExpired(error)) {
+            authExpired = true;
+            await _handleAuthExpired(error);
+            break;
+          }
+
+          failed++;
         } catch (_) {
           failed++;
         }
       }
 
-      if (_disposed) return;
+      if (_disposed || sessionVersion != _authViewModel.sessionVersion) {
+        return;
+      }
 
       await _refreshAfterWrite();
 
       if (_disposed) return;
 
-      if (failed > 0) {
+      if (authExpired) {
+        message = '로그인이 만료됐어요. 다시 로그인해 주세요.';
+      } else if (failed > 0) {
         message = '$failed개 항목을 삭제하지 못했습니다. 선택된 항목을 다시 확인해 주세요.';
-        _notify();
       }
+
+      _notify();
     } finally {
       if (!_disposed) {
         isDeletingSelected = false;
